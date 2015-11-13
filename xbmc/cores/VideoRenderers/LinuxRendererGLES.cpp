@@ -44,6 +44,10 @@
 #include "windowing/WindowingFactory.h"
 #include "guilib/Texture.h"
 #include "../dvdplayer/DVDCodecs/Video/OpenMaxVideo.h"
+//* Modify by LeMaker -- begin
+#include "../dvdplayer/DVDCodecs/Video/OWLCodec.h"
+#include "../dvdplayer/DVDCodecs/Video/DVDVideoCodecOWL.h"
+//* Modify by LeMaker -- end
 #include "threads/SingleLock.h"
 #include "RenderCapture.h"
 #include "RenderFormats.h"
@@ -202,8 +206,12 @@ bool CLinuxRendererGLES::ValidateRenderTarget()
     // function pointer for texture might change in
     // call to LoadShaders
     glFinish();
+//* Modify by LeMaker -- begin
+#ifndef HAS_OWL_PLAYER
     for (int i = 0 ; i < NUM_BUFFERS ; i++)
       (this->*m_textureDelete)(i);
+#endif
+//* Modify by LeMaker -- end
 
      // create the yuv textures
     LoadShaders();
@@ -324,6 +332,15 @@ int CLinuxRendererGLES::GetImage(YV12Image *image, int source, bool readonly)
     im.flags |= IMAGE_FLAG_READING;
   else
     im.flags |= IMAGE_FLAG_WRITING;
+
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+  if (m_format == RENDER_FMT_OWL )
+  {
+    return source;
+  }
+#endif
+//* Modify by LeMaker -- end
 
   // copy the image - should be operator of YV12Image
   for (int p=0;p<MAX_PLANES;p++)
@@ -727,6 +744,12 @@ unsigned int CLinuxRendererGLES::PreInit()
   m_formats.push_back(RENDER_FMT_IMXMAP);
 #endif
 
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+  m_formats.push_back(RENDER_FMT_OWL);
+#endif
+//* Modify by LeMaker -- end
+
   // setup the background colour
   m_clearColour = (float)(g_advancedSettings.m_videoBlackBarColour & 0xff) / 0xff;
 
@@ -938,7 +961,15 @@ void CLinuxRendererGLES::LoadShaders(int field)
     m_textureCreate = &CLinuxRendererGLES::CreateOpenMaxTexture;
     m_textureDelete = &CLinuxRendererGLES::DeleteOpenMaxTexture;
   }
-   else
+//* Modify by LeMaker -- begin
+  else if (m_format == RENDER_FMT_OWL)
+  {
+    m_textureUpload = &CLinuxRendererGLES::UploadOWLTexture;
+    m_textureCreate = &CLinuxRendererGLES::CreateOWLTexture;
+    m_textureDelete = &CLinuxRendererGLES::DeleteOWLTexture;
+  }
+//* Modify by LeMaker -- end
+  else
   {
     // default to YV12 texture handlers
     m_textureUpload = &CLinuxRendererGLES::UploadYV12Texture;
@@ -3111,6 +3142,346 @@ void CLinuxRendererGLES::AddProcessor(CDVDVideoCodecIMXBuffer *buffer, int index
     buffer->Lock();
 }
 #endif
+
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+void CLinuxRendererGLES::AddProcessor(OWLVideoBufferHolder *owlHolder, int index)
+{
+  YUVBUFFER &buf = m_buffers[index];
+  int codecStatus;
+
+  codecStatus = OWLCodecStatus();
+
+  if (codecStatus == 1){
+    buf.OWLHolder = 0;
+  }else if (buf.OWLHolder){
+    buf.OWLHolder->Release();
+    buf.OWLHolder = 0;
+  }
+  
+  buf.OWLHolder = owlHolder;
+  if (buf.OWLHolder) {
+    buf.OWLHolder->Acquire();
+  }
+}
+#endif
+
+void CLinuxRendererGLES::UploadOWLTexture(int source)
+{
+#ifdef HAS_OWL_PLAYER
+  YUVBUFFER& buf    =  m_buffers[source];
+  YV12Image* im     = &buf.image;
+  YUVFIELDS& fields =  buf.fields;
+
+  if (!(im->flags & IMAGE_FLAG_READY))
+    return;
+
+  OWLVideoBufferHolder *OWLHolder;
+
+  int codecStatus;
+
+  OWLHolder = m_buffers[source].OWLHolder;
+
+  if (OWLHolder == NULL)
+  {
+    CLog::Log(LOGNOTICE,"UploadOWLTexture :: no owl holder");
+    return;
+  }
+
+  codecStatus = OWLCodecStatus();
+  
+  if (codecStatus == 1){
+    CLog::Log(LOGNOTICE,"UploadOWLTexture :: owlCodec closing");
+    printf("\n UploadOWLTexture :: owlCodec closing!! \n");
+    buf.OWLHolder = 0;
+    return;
+  }
+ 
+  uint8_t *plane_0;
+  uint8_t *plane_1;
+  uint8_t *src_0   = (uint8_t*)OWLHolder->pData[0];
+  int src_stride = OWLHolder->nLineStride[0];
+  
+  uint8_t *s = src_0;
+  uint8_t *d = im->plane[0];
+  int w = OWLHolder->nWidth;
+  int h = OWLHolder->nHeight;
+  // Copy Y
+  if ((w == src_stride) &&(unsigned int) src_stride == im->stride[0])
+  {
+    plane_0 = (uint8_t*)OWLHolder->pData[0];
+  }
+  else
+  {
+    for (int y = 0; y < h; y++)
+    {
+//* Modify by LeMaker -- begin
+      //fast_memcpy(d, s, w);
+      memcpy(d, s, w);
+//* Modify by LeMaker -- end
+      s += src_stride;
+      d += im->stride[0];
+    }
+    plane_0 = im->plane[0];
+  }
+  
+  uint8_t *src_1   = (uint8_t*)OWLHolder->pData[1];
+  src_stride = OWLHolder->nLineStride[1];
+  
+  s = src_1;
+  d = im->plane[1];
+  w = OWLHolder->nWidth;
+  h = OWLHolder->nHeight >> 1;
+  // Copy packed UV (width is same as for Y as it's both U and V components)
+  if ((w == src_stride) && (unsigned int) src_stride==im->stride[1])
+  {
+    plane_1 = (uint8_t*)OWLHolder->pData[1];
+  }
+  else
+  {
+    for (int y = 0; y < h; y++)
+    {
+//* Modify by LeMaker -- begin
+      //fast_memcpy(d, s, w);
+      memcpy(d, s, w);
+//* Modify by LeMaker -- end
+      s += src_stride;
+      d += im->stride[1];
+    }
+
+    plane_1 = im->plane[1];
+  }
+
+  bool deinterlacing;
+  if (m_currentField == FIELD_FULL)
+    deinterlacing = false;
+  else
+    deinterlacing = true;
+
+  glEnable(m_textureTarget);
+  VerifyGLState();
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, im->bpp);
+
+  if (deinterlacing)
+  {
+    // Load Odd Y field
+    LoadPlane( fields[FIELD_TOP][0] , GL_LUMINANCE, buf.flipindex
+             , im->width, im->height >> 1
+             , im->stride[0]*2, im->bpp, plane_0 );
+
+    // Load Even Y field
+    LoadPlane( fields[FIELD_BOT][0], GL_LUMINANCE, buf.flipindex
+             , im->width, im->height >> 1
+             , im->stride[0]*2, im->bpp, plane_0 + im->stride[0]) ;
+
+    // Load Odd UV Fields
+    LoadPlane( fields[FIELD_TOP][1], GL_LUMINANCE_ALPHA, buf.flipindex
+             , im->width >> im->cshift_x, im->height >> (im->cshift_y + 1)
+             , im->stride[1]*2, im->bpp, plane_1 );
+
+    // Load Even UV Fields
+    LoadPlane( fields[FIELD_BOT][1], GL_LUMINANCE_ALPHA, buf.flipindex
+             , im->width >> im->cshift_x, im->height >> (im->cshift_y + 1)
+             , im->stride[1]*2, im->bpp, plane_1 + im->stride[1] );
+
+  }
+  else
+  {
+    // Load Y plane
+    LoadPlane( fields[FIELD_FULL][0], GL_LUMINANCE, buf.flipindex
+             , im->width, im->height
+             , im->stride[0], im->bpp, plane_0 );
+
+    // Load UV plane
+    LoadPlane( fields[FIELD_FULL][1], GL_LUMINANCE_ALPHA, buf.flipindex
+             , im->width >> im->cshift_x, im->height >> im->cshift_y
+             , im->stride[1], im->bpp, plane_1 );
+  }
+
+  VerifyGLState();
+
+  CalculateTextureSourceRects(source, 3);
+
+  glDisable(m_textureTarget);
+#endif
+}
+
+
+void CLinuxRendererGLES::DeleteOWLTexture(int index)
+{
+#ifdef HAS_OWL_PLAYER
+  int codecStatus;
+
+  codecStatus = OWLCodecStatus();
+
+  if (codecStatus == 1){
+    m_buffers[index].OWLHolder = 0;
+  }else if (m_buffers[index].OWLHolder){
+    m_buffers[index].OWLHolder->Release();
+    m_buffers[index].OWLHolder = 0;
+  }else{
+    m_buffers[index].OWLHolder = 0;
+  }
+
+  YUVFIELDS &fields = m_buffers[index].fields;
+  YV12Image &im     = m_buffers[index].image;
+
+  if( fields[FIELD_FULL][0].id == 0 ) return;
+
+  // finish up all textures, and delete them
+  g_graphicsContext.BeginPaint();  //FIXME
+  for(int f = 0;f<MAX_FIELDS;f++)
+  {
+    for(int p = 0;p<2;p++)
+    {
+	  if( fields[f][p].id )
+	  {
+		  if (glIsTexture(fields[f][p].id))
+		  {
+			glDeleteTextures(1, &fields[f][p].id);
+		  }
+		  fields[f][p].id = 0;
+	  }
+    }
+    fields[f][2].id = 0;
+  }
+  g_graphicsContext.EndPaint();
+
+    for(int p = 0;p<2;p++)
+  {
+    if (im.plane[p])
+    {
+      delete[] im.plane[p];
+      im.plane[p] = NULL;
+    }
+  }
+#endif
+}
+
+bool CLinuxRendererGLES::CreateOWLTexture(int index)
+{
+#ifdef HAS_OWL_PLAYER
+  // since we also want the field textures, pitch must be texture aligned
+  YV12Image &im     = m_buffers[index].image;
+  YUVFIELDS &fields = m_buffers[index].fields;
+  m_buffers[index].OWLHolder = 0;
+
+  // Delete any old texture
+  DeleteOWLTexture(index);
+
+  im.height = m_sourceHeight;
+  im.width  = m_sourceWidth;
+  im.cshift_x = 1;
+  im.cshift_y = 1;
+  im.bpp = 1;
+
+  im.stride[0] = im.width;
+  im.stride[1] = im.width;
+  im.stride[2] = 0;
+
+  im.plane[0] = NULL;
+  im.plane[1] = NULL;
+  im.plane[2] = NULL;
+
+  // Y plane
+  im.planesize[0] = im.stride[0] * im.height;
+  // packed UV plane
+  im.planesize[1] = im.stride[1] * im.height / 2;
+  // third plane is not used
+  im.planesize[2] = 0;
+
+  for (int i = 0; i < 2; i++)
+    im.plane[i] = new BYTE[im.planesize[i]];
+
+  glEnable(m_textureTarget);
+  for(int f = 0;f<MAX_FIELDS;f++)
+  {
+    for(int p = 0;p<2;p++)
+    {
+      if (!glIsTexture(fields[f][p].id))
+      {
+        glGenTextures(1, &fields[f][p].id);
+        VerifyGLState();
+      }
+    }
+    fields[f][2].id = fields[f][1].id;
+  }
+
+  // YUV
+  for (int f = FIELD_FULL; f<=FIELD_BOT ; f++)
+  {
+    int fieldshift = (f==FIELD_FULL) ? 0 : 1;
+    YUVPLANES &planes = fields[f];
+
+    planes[0].texwidth  = im.width;
+    planes[0].texheight = im.height >> fieldshift;
+
+    if (m_renderMethod & RENDER_SW)
+    {
+      planes[1].texwidth  = 0;
+      planes[1].texheight = 0;
+      planes[2].texwidth  = 0;
+      planes[2].texheight = 0;
+    }
+    else
+    {
+      planes[1].texwidth  = planes[0].texwidth  >> im.cshift_x;
+      planes[1].texheight = planes[0].texheight >> im.cshift_y;
+      planes[2].texwidth  = planes[1].texwidth;
+      planes[2].texheight = planes[1].texheight;
+    }
+
+    for (int p = 0; p < 3; p++)
+    {
+      planes[p].pixpertex_x = 1;
+      planes[p].pixpertex_y = 1;
+    }
+
+    if(m_renderMethod & RENDER_POT)
+    {
+      for(int p = 0; p < 3; p++)
+      {
+        planes[p].texwidth  = NP2(planes[p].texwidth);
+        planes[p].texheight = NP2(planes[p].texheight);
+      }
+    }
+
+    for(int p = 0; p < 2; p++)
+    {
+      YUVPLANE &plane = planes[p];
+      if (plane.texwidth * plane.texheight == 0)
+        continue;
+
+      glBindTexture(m_textureTarget, plane.id);
+      if (m_renderMethod & RENDER_SW)
+      {
+        glTexImage2D(m_textureTarget, 0, GL_RGBA, plane.texwidth, plane.texheight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, NULL);
+      }
+      else
+      {
+        if (p == 1)
+          glTexImage2D(m_textureTarget, 0, GL_LUMINANCE_ALPHA, plane.texwidth, plane.texheight, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, NULL);
+        else
+          glTexImage2D(m_textureTarget, 0, GL_LUMINANCE, plane.texwidth, plane.texheight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, NULL);
+      }
+
+      glTexParameteri(m_textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(m_textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTexParameteri(m_textureTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(m_textureTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      VerifyGLState();
+    }
+  }
+  glDisable(m_textureTarget);
+
+  return true;
+#endif
+
+  return true;
+}
+//* Modify by LeMaker -- end
+
 
 bool CLinuxRendererGLES::IsGuiLayer()
 {

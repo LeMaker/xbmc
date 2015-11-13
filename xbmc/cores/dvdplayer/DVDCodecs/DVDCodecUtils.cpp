@@ -288,6 +288,18 @@ DVDVideoPicture* CDVDCodecUtils::ConvertToYUV422PackedPicture(DVDVideoPicture *p
   return pPicture;
 }
 
+//* Modify by LeMaker -- begin
+static unsigned long long get_time_us(void)
+{
+       struct timeval tm;
+       unsigned long long curtime = 0;	
+       gettimeofday(&tm,NULL);
+
+       curtime = tm.tv_sec*1000000 + tm.tv_usec;
+       return curtime;
+}
+//* Modify by LeMaker -- end
+
 bool CDVDCodecUtils::CopyNV12Picture(YV12Image* pImage, DVDVideoPicture *pSrc)
 {
   uint8_t *s = pSrc->data[0];

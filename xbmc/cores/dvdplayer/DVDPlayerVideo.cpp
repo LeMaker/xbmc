@@ -183,6 +183,17 @@ bool CDVDPlayerVideo::OpenStream( CDVDStreamInfo &hint )
   info = g_renderManager.GetRenderInfo();
   #endif
 
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+  if (m_pVideoCodec && (strcmp(m_pVideoCodec->GetName(), "OWL") == 0)){
+  	printf("\nCDVDPlayerVideo::OpenStream m_pVideoCodec dispose \n");
+    m_pVideoCodec->Dispose();
+    delete m_pVideoCodec;
+    m_pVideoCodec = NULL;
+  }
+#endif
+//* Modify by LeMaker -- end
+
   m_pullupCorrection.ResetVFRDetection();
   if(hint.flags & AV_DISPOSITION_ATTACHED_PIC)
     return false;
@@ -932,6 +943,9 @@ static std::string GetRenderFormatName(ERenderFormat format)
     case RENDER_FMT_IMXMAP:    return "IMXMAP";
     case RENDER_FMT_MMAL:      return "MMAL";
     case RENDER_FMT_NONE:      return "NONE";
+//* Modify by LeMaker -- begin
+    case RENDER_FMT_OWL:       return "OWLBUF";
+//* Modify by LeMaker -- end
   }
   return "UNKNOWN";
 }

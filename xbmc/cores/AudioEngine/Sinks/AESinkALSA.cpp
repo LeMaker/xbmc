@@ -656,7 +656,17 @@ bool CAESinkALSA::InitializeHW(const ALSAConfig &inconfig, ALSAConfig &outconfig
   snd_pcm_hw_params_set_access(m_pcm, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
 
   unsigned int sampleRate   = inconfig.sampleRate;
+
+//* Modify by LeMaker -- begin
+#if defined(HAS_OWL_PLAYER)
+  CLog::Log(LOGINFO, "CAESinkALSA::InitializeHW - sampleRate = %d",sampleRate);
+  if (snd_pcm_hw_params_set_rate(m_pcm, hw_params, sampleRate, 0) < 0){
+     CLog::Log(LOGINFO, "CAESinkALSA::InitializeHW - err ,%d",__LINE__);
+  } 
+#else
   snd_pcm_hw_params_set_rate_near    (m_pcm, hw_params, &sampleRate, NULL);
+#endif
+//* Modify by LeMaker -- end
 
   unsigned int channelCount = inconfig.channels;
   /* select a channel count >=wanted, or otherwise the highest available */
@@ -1102,6 +1112,8 @@ bool CAESinkALSA::OpenPCMDevice(const std::string &name, const std::string &para
   return false;
 }
 
+//* Modify by LeMaker -- begin
+#ifndef  HAS_OWL_PLAYER
 void CAESinkALSA::EnumerateDevicesEx(AEDeviceInfoList &list, bool force)
 {
 #if HAVE_LIBUDEV
@@ -1288,6 +1300,186 @@ void CAESinkALSA::EnumerateDevicesEx(AEDeviceInfoList &list, bool force)
     }
   }
 }
+#else
+void CAESinkALSA::EnumerateDevicesEx(AEDeviceInfoList &list, bool force)
+{
+  /* ensure that ALSA has been initialized */
+  snd_lib_error_set_handler(sndLibErrorHandler);
+  if(!snd_config)
+  {
+    snd_config_update();
+  }
+
+  snd_ctl_t *ctlhandle;
+  snd_pcm_t *pcmhandle;
+
+  snd_ctl_card_info_t *ctlinfo;
+  snd_ctl_card_info_alloca(&ctlinfo);
+  memset(ctlinfo, 0, snd_ctl_card_info_sizeof());
+
+  snd_pcm_hw_params_t *hwparams;
+  snd_pcm_hw_params_alloca(&hwparams);
+  memset(hwparams, 0, snd_pcm_hw_params_sizeof());
+
+  snd_pcm_info_t *pcminfo;
+  snd_pcm_info_alloca(&pcminfo);
+  memset(pcminfo, 0, snd_pcm_info_sizeof());
+
+  /* get the sound config */
+  snd_config_t *config;
+  snd_config_copy(&config, snd_config);
+
+  std::string strHwName;
+  int n_cards = -1;
+  while (snd_card_next(&n_cards) == 0 && n_cards != -1)
+  {
+    std::stringstream sstr;
+    sstr << "hw:" << n_cards;
+    std::string strHwName = sstr.str();
+	
+	CLog::Log(LOGINFO, "strHwName %s",strHwName.c_str());
+	if (snd_ctl_open(&ctlhandle, strHwName.c_str(), 0) != 0)
+    //if (snd_ctl_open_lconf(&ctlhandle, strHwName.c_str(), 0, config) != 0)
+    {
+      CLog::Log(LOGDEBUG, "CAESinkALSA::EnumerateDevicesEx - Unable to open control for device %s", strHwName.c_str());
+      continue;
+    }
+
+    if (snd_ctl_card_info(ctlhandle, ctlinfo) != 0)
+    {
+      CLog::Log(LOGDEBUG, "CAESinkALSA::EnumerateDevicesEx - Unable to get card control info for device %s", strHwName.c_str());
+      snd_ctl_close(ctlhandle);
+      continue;
+    }
+
+    snd_hctl_t *hctl;
+    if (snd_hctl_open_ctl(&hctl, ctlhandle) != 0)
+      hctl = NULL;
+    snd_hctl_load(hctl);
+
+    int pcm_index    = 0;
+    int iec958_index = 0;
+    int hdmi_index   = 0;
+
+    int dev = -1;
+    while (snd_ctl_pcm_next_device(ctlhandle, &dev) == 0 && dev != -1)
+    {
+      snd_pcm_info_set_device   (pcminfo, dev);
+      snd_pcm_info_set_subdevice(pcminfo, 0  );
+      snd_pcm_info_set_stream   (pcminfo, SND_PCM_STREAM_PLAYBACK);
+
+      if (snd_ctl_pcm_info(ctlhandle, pcminfo) < 0)
+      {
+        CLog::Log(LOGDEBUG, "CAESinkALSA::EnumerateDevicesEx - Skipping device %s,%d as it does not have PCM playback ability", strHwName.c_str(), dev);
+        continue;
+      }
+
+      int dev_index;
+      sstr.str(std::string());
+      CAEDeviceInfo info;
+      std::string devname = snd_pcm_info_get_name(pcminfo);
+
+      info.m_deviceType = AE_DEVTYPE_PCM;
+      dev_index = pcm_index++;
+      sstr << "hw";
+
+      /* build the driver string to pass to ALSA */
+      sstr << ":CARD=" << snd_ctl_card_info_get_id(ctlinfo) << ",DEV=" << dev_index;
+      info.m_deviceName = sstr.str();
+
+	  CLog::Log(LOGINFO, "m_deviceName - %s",info.m_deviceName.c_str() );
+
+
+      /* get the friendly display name*/
+      info.m_displayName      = snd_ctl_card_info_get_name(ctlinfo);
+      info.m_displayNameExtra = devname;
+
+
+	  if (info.m_displayNameExtra.empty())
+	  {
+		info.m_displayNameExtra = "Analog";
+	  }
+
+	  if (dev_index == 1)
+	  {
+		/* add by actions, lishiyuan */
+		info.m_displayName = "HDMI (" + info.m_displayName + (info.m_displayNameExtra.empty() ? "" : " " + info.m_displayNameExtra + ")");
+		info.m_displayNameExtra = "";
+	  }
+
+	  if (dev_index == 0)
+	  {
+		/* add by actions, lishiyuan */
+		info.m_displayName = "Default (" + info.m_displayName + (info.m_displayNameExtra.empty() ? "" : " " + info.m_displayNameExtra + ")");
+		info.m_displayNameExtra = "";
+	  } 
+
+      CLog::Log(LOGINFO, "m_displayName - %s",info.m_displayName.c_str() );
+	  
+      int err = snd_pcm_open_lconf(&pcmhandle, info.m_deviceName.c_str(), SND_PCM_STREAM_PLAYBACK, 0, config);
+      /* final error check */
+      if (err < 0)
+      {
+        CLog::Log(LOGINFO, "CAESinkALSA::EnumerateDevicesEx - Unable to open %s for capability detection", strHwName.c_str());
+        continue;
+      }
+
+      /* ensure we can get a playback configuration for the device */
+      if (snd_pcm_hw_params_any(pcmhandle, hwparams) < 0)
+      {
+        CLog::Log(LOGINFO, "CAESinkALSA::EnumerateDevicesEx - No playback configurations available for device %s", info.m_deviceName.c_str());
+        snd_pcm_close(pcmhandle);
+        continue;
+      }
+
+      /* detect the available sample rates */
+      for (unsigned int *rate = ALSASampleRateList; *rate != 0; ++rate)
+        if (snd_pcm_hw_params_test_rate(pcmhandle, hwparams, *rate, 0) >= 0)
+          info.m_sampleRates.push_back(*rate);
+
+      /* detect the channels available */
+      int channels = 0;
+      for (int i = 1; i <= ALSA_MAX_CHANNELS; ++i)
+        if (snd_pcm_hw_params_test_channels(pcmhandle, hwparams, i) >= 0)
+          channels = i;
+
+      CAEChannelInfo alsaChannels;
+      for (int i = 0; i < channels; ++i)
+      {
+        if (!info.m_channels.HasChannel(LegacyALSAChannelMap[i]))
+          info.m_channels += LegacyALSAChannelMap[i];
+        alsaChannels += LegacyALSAChannelMap[i];
+      }
+
+      /* remove the channels from m_channels that we cant use */
+      info.m_channels.ResolveChannels(alsaChannels);
+
+      /* detect the PCM sample formats that are available */
+      for (enum AEDataFormat i = AE_FMT_MAX; i > AE_FMT_INVALID; i = (enum AEDataFormat)((int)i - 1))
+      {
+        if (AE_IS_RAW(i) || i == AE_FMT_MAX)
+          continue;
+        snd_pcm_format_t fmt = AEFormatToALSAFormat(i);
+        if (fmt == SND_PCM_FORMAT_UNKNOWN)
+          continue;
+
+        if (snd_pcm_hw_params_test_format(pcmhandle, hwparams, fmt) >= 0)
+          info.m_dataFormats.push_back(i);
+      }
+
+      snd_pcm_close(pcmhandle);
+      list.push_back(info);
+    }
+
+    /* snd_hctl_close also closes ctlhandle */
+    if (hctl)
+      snd_hctl_close(hctl);
+    else
+      snd_ctl_close(ctlhandle);
+  }
+}
+#endif
+//* Modify by LeMaker -- end
 
 AEDeviceType CAESinkALSA::AEDeviceTypeFromName(const std::string &name)
 {
@@ -1384,7 +1576,11 @@ void CAESinkALSA::EnumerateDevice(AEDeviceInfoList &list, const std::string &dev
             bool badHDMI = false;
 
             /* add ELD to monitoring */
+//* Modify by LeMaker -- begin
+#ifndef  HAS_OWL_PLAYER
             m_controlMonitor.Add(strHwName, SND_CTL_ELEM_IFACE_PCM, dev, "ELD");
+#endif
+//* Modify by LeMaker -- end
 
             if (!GetELD(hctl, dev, info, badHDMI))
               CLog::Log(LOGDEBUG, "CAESinkALSA - Unable to obtain ELD information for device \"%s\" (not supported by device, or kernel older than 3.2)",
@@ -1438,7 +1634,16 @@ void CAESinkALSA::EnumerateDevice(AEDeviceInfoList &list, const std::string &dev
       info.m_displayName = "Default (" + info.m_displayName + (info.m_displayNameExtra.empty() ? "" : " " + info.m_displayNameExtra + ")");
       info.m_displayNameExtra = "";
     }
-
+//* Modify by LeMaker -- begin
+#if defined(HAS_OWL_PLAYER)
+    if ( device == "hw:0,1")
+    {
+      /* add by actions, lishiyuan */
+      info.m_displayName = "HDMI (" + info.m_displayName + (info.m_displayNameExtra.empty() ? "" : " " + info.m_displayNameExtra + ")");
+      info.m_displayNameExtra = "";
+    }
+#endif
+//* Modify by LeMaker -- end
   }
   else
   {
@@ -1627,9 +1832,13 @@ void CAESinkALSA::sndLibErrorHandler(const char *file, int line, const char *fun
   va_end(arg);
 }
 
+//* Modify by LeMaker -- begin
+#ifndef  HAS_OWL_PLAYER
 #if HAVE_LIBUDEV
 CALSADeviceMonitor CAESinkALSA::m_deviceMonitor; // ARGH
 #endif
 CALSAHControlMonitor CAESinkALSA::m_controlMonitor; // ARGH
+#endif
+//* Modify LeMaker -- end
 
 #endif

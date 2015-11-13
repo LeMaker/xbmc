@@ -15,6 +15,10 @@ SRCS += XTimeUtils.cpp
 
 SRCS += RBP.cpp
 
+#Modify by LeMaker -- begin
+SRCS += ACTIONS.cpp
+#Modify by LeMaker -- end
+
 ifeq (@USE_OMXLIB@,1)
 SRCS += OMXClock.cpp
 SRCS += OMXCore.cpp

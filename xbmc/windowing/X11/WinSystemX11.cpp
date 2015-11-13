@@ -497,6 +497,12 @@ EGLConfig getEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo)
   EGLint attributes[] =
   {
     EGL_DEPTH_SIZE, 24,
+//* Modify by LeMaker -- begin
+    EGL_RED_SIZE,   8,						  
+    EGL_GREEN_SIZE, 8,						  
+    EGL_BLUE_SIZE,  8,						  
+    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,  
+//* Modify by LeMaker -- end
     EGL_NONE
   };
   EGLint numConfigs;

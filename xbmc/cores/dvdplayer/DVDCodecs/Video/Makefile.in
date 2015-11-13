@@ -20,6 +20,16 @@ SRCS += OpenMax.cpp
 SRCS += OpenMaxVideo.cpp
 SRCS += DVDVideoCodecOpenMax.cpp
 endif
+
+# Modify by LeMaker -- begin
+ifeq (@USE_OWL_PLAYER@,1)
+SRCS += OpenMax.cpp
+SRCS += OWLCodec.cpp
+SRCS += DVDVideoCodecOWL.cpp
+SRCS += OWLCheckIDR.cpp
+endif
+# Modify by LeMaker -- end
+
 ifeq (@USE_IMXVPU@,1)
 SRCS += DVDVideoCodecIMX.cpp
 endif

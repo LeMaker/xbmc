@@ -45,6 +45,13 @@ class CDVDMediaCodecInfo;
 #ifdef HAS_IMXVPU
 class CDVDVideoCodecIMXBuffer;
 #endif
+
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+class OWLVideoBufferHolder;
+#endif
+//* Modify by LeMaker -- end
+
 typedef std::vector<int>     Features;
 
 
@@ -177,6 +184,12 @@ public:
   virtual void         AddProcessor(CDVDVideoCodecIMXBuffer *codecinfo, int index);
 #endif
 
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+  virtual void         AddProcessor(OWLVideoBufferHolder *owlHolder, int index);
+#endif
+//* Modify by LeMaker -- end
+
 protected:
   virtual void Render(DWORD flags, int index);
   void RenderUpdateVideo(bool clear, DWORD flags = 0, DWORD alpha = 255);
@@ -224,6 +237,12 @@ protected:
   void UploadIMXMAPTexture(int index);
   void DeleteIMXMAPTexture(int index);
   bool CreateIMXMAPTexture(int index);
+
+//* Modify by LeMaker -- begin
+  void UploadOWLTexture(int source);
+  void DeleteOWLTexture(int index);
+  bool CreateOWLTexture(int index);
+//* Modify by LeMaker -- end
 
   void CalculateTextureSourceRects(int source, int num_planes);
 
@@ -305,6 +324,12 @@ protected:
 #ifdef HAS_IMXVPU
     CDVDVideoCodecIMXBuffer *IMXBuffer;
 #endif
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+    OWLVideoBufferHolder *OWLHolder;
+#endif
+//* Modify by LeMaker -- end
+
   };
 
   typedef YUVBUFFER          YUVBUFFERS[NUM_BUFFERS];

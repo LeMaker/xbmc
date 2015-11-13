@@ -42,6 +42,9 @@ enum ERenderFormat {
   RENDER_FMT_MEDIACODEC,
   RENDER_FMT_IMXMAP,
   RENDER_FMT_MMAL,
+//* Modify by LeMaker -- begin
+  RENDER_FMT_OWL,
+//* Modify by LeMaker -- end
 };
 
 struct CRenderInfo

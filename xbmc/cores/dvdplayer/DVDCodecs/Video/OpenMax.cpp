@@ -24,8 +24,11 @@
 #include "system.h"
 #endif
 
+//* Modify by LeMaker -- begin
+//#include "OpenMax.h"
+#if defined(HAVE_LIBOPENMAX) || defined (HAS_OWL_PLAYER)
 #include "OpenMax.h"
-#if defined(HAVE_LIBOPENMAX)
+//* Modify by LeMaker -- end
 #include "DynamicDll.h"
 #include "DVDClock.h"
 #include "DVDStreamInfo.h"
@@ -61,7 +64,13 @@ public:
 
 class DllLibOpenMax : public DllDynamic, DllLibOpenMaxInterface
 {
+//* Modify by LeMaker -- begin
+#if (defined HAS_OWL_PLAYER)
+  DECLARE_DLL_WRAPPER(DllLibOpenMax, "libOMX_Core.so")
+#else
   DECLARE_DLL_WRAPPER(DllLibOpenMax, "libnvomx.so")
+#endif
+//* Modify by LeMaker -- end
 
   DEFINE_METHOD0(OMX_ERRORTYPE, OMX_Init)
   DEFINE_METHOD0(OMX_ERRORTYPE, OMX_Deinit)

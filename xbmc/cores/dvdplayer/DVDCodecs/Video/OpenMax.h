@@ -19,7 +19,9 @@
  *
  */
 
-#if defined(HAVE_LIBOPENMAX)
+//* Modify by LeMaker -- begin
+#if defined(HAVE_LIBOPENMAX) || defined (HAS_OWL_PLAYER)
+//* Modify by LeMaker -- end
 
 #include "cores/dvdplayer/DVDStreamInfo.h"
 #include "DVDVideoCodec.h"

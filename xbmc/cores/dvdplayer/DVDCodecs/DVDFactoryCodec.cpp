@@ -37,6 +37,11 @@
 #include "Video/DVDVideoCodecFFmpeg.h"
 #include "Video/DVDVideoCodecOpenMax.h"
 #include "Video/DVDVideoCodecLibMpeg2.h"
+//* Modify by LeMaker -- begin
+#if defined(HAS_OWL_PLAYER)
+#include "Video/DVDVideoCodecOWL.h"
+#endif
+//* Modify by LeMaker -- end
 #if defined(HAS_IMXVPU)
 #include "Video/DVDVideoCodecIMX.h"
 #endif
@@ -199,6 +204,14 @@ CDVDVideoCodec* CDVDFactoryCodec::CreateVideoCodec(CDVDStreamInfo &hint, const C
 #else
   hwSupport += "MMAL:no ";
 #endif
+//* Modify by LeMaker -- begin
+#if defined(HAS_OWL_PLAYER)
+  hwSupport += "OWL:yes ";
+#else
+  hwSupport += "OWL:no ";
+#endif
+//* Modify by LeMaker -- end
+
   CLog::Log(LOGDEBUG, "CDVDFactoryCodec: compiled in hardware support: %s", hwSupport.c_str());
 
   if (hint.stills && (hint.codec == AV_CODEC_ID_MPEG2VIDEO || hint.codec == AV_CODEC_ID_MPEG1VIDEO))
@@ -280,6 +293,16 @@ CDVDVideoCodec* CDVDFactoryCodec::CreateVideoCodec(CDVDStreamInfo &hint, const C
     }
   }
 #endif
+
+//* Modify by LeMaker -- begin
+#if defined(HAS_OWL_PLAYER)
+    if (!hint.software )
+    {
+        if ( (pCodec = OpenCodec(new CDVDVideoCodecOWL(), hint, options)) ) 
+		return pCodec;
+    }
+#endif
+//* Modify by LeMaker -- end
 
 #if defined(HAVE_LIBOPENMAX)
     if (CSettings::Get().GetBool("videoplayer.useomx") && !hint.software )

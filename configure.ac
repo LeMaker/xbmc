@@ -755,6 +755,16 @@ case $use_platform in
      CFLAGS="$CFLAGS"
      CXXFLAGS="$CXXFLAGS"
      ;;
+	Actduino)
+	target_platform=target_actduino
+	use_arch="arm"
+	ARCH="arm"
+	USE_OWL_PLAYER=1
+	AC_DEFINE(HAS_OWL_PLAYER, [1], [Define if supporting OWL player])
+	CFLAGS="$CFLAGS"
+	CXXFLAGS="$CXXFLAGS"
+     ;;
+
 esac
 
 if test "$host_vendor" = "apple"; then
@@ -1723,6 +1733,8 @@ if test "${USE_STATIC_FFMPEG}" = "1"; then
     pkg_cfg_prefix="${PKG_CONFIG_SYSROOT_DIR}"
   elif test "${target_platform}" = "target_raspberry_pi" && test "${USE_BUILDROOT}" = "1"; then
       pkg_cfg_prefix=${SYSROOT}
+  elif test "${target_platform}" = "target_actduino" && test "${USE_BUILDROOT}" = "1"; then
+	pkg_cfg_prefix=${SYSROOT}
   fi
 
   if test "$cross_compiling" != "yes"; then
@@ -2172,13 +2184,13 @@ fi
 
 # we don't compile with default upstream squish, so we use our own one
 # even on non unified deps platforms
-if test "$cross_compiling" != "yes"; then
-  make -C ${abs_top_srcdir}/tools/depends/native/libsquish-native CXX=${CXX}
-  export PKG_CONFIG_PATH="${abs_top_srcdir}/tools/depends/native/libsquish-native/squish-install/lib/pkgconfig:$PKG_CONFIG_PATH"
-fi
-PKG_CHECK_MODULES([SQUISH], [squish],
- [INCLUDES="$INCLUDES $SQUISH_CFLAGS" LIBS="$LIBS $SQUISH_LIBS"],
- AC_MSG_ERROR("squish not found"))
+#if test "$cross_compiling" != "yes"; then
+#  make -C ${abs_top_srcdir}/tools/depends/native/libsquish-native CXX=${CXX}
+#  export PKG_CONFIG_PATH="${abs_top_srcdir}/tools/depends/native/libsquish-native/squish-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+#fi
+#PKG_CHECK_MODULES([SQUISH], [squish],
+# [INCLUDES="$INCLUDES $SQUISH_CFLAGS" LIBS="$LIBS $SQUISH_LIBS"],
+# AC_MSG_ERROR("squish not found"))
 
 if test "x$use_texturepacker" != "xno"; then
   AC_PATH_PROG([TEXTUREPACKER], [TexturePacker], ["none"],
@@ -2478,6 +2490,7 @@ OUTPUT_FILES="Makefile \
     xbmc/network/upnp/Makefile \
     lib/libexif/Makefile \
     lib/libhdhomerun/Makefile \
+    lib/libsquish/Makefile \
     lib/cximage-6.0/Makefile \
     lib/libUPnP/Makefile \
     xbmc/DllPaths_generated.h \
@@ -2638,6 +2651,7 @@ AC_SUBST(USE_UPNP)
 AC_SUBST(USE_XKBCOMMON)
 AC_SUBST(USE_OMXLIB)
 AC_SUBST(USE_ANDROID)
+AC_SUBST(USE_OWL_PLAYER)
 AC_SUBST(GTEST_CONFIGURED)
 AC_SUBST(USE_DOXYGEN)
 AC_SUBST(UPNP_DEFINES)
@@ -2818,7 +2832,7 @@ XB_CONFIG_MODULE([lib/cpluff], [
     --prefix="${prefix}" --includedir="${includedir}" --libdir="${libdir}" --datadir="${datadir}" \
     --host=$host_alias \
     --build=$build_alias \
-    --target=$target_alias CFLAGS="$CFLAGS" CC="$CC" CXX="$CXX" LDFLAGS="$LDFLAGS" LIBS=""
+    --target=$target_alias CFLAGS="$CFLAGS" CC="$CC" CXX="$CXX" LDFLAGS="" LIBS=""
     #LDFLAGS="$LDFLAGS -Wl,-read_only_relocs,suppress"    
 ], [0])
 

@@ -1032,6 +1032,13 @@ int CXBMCRenderManager::AddVideoPicture(DVDVideoPicture& pic)
     m_pRenderer->AddProcessor(pic.MMALBuffer, index);
 #endif
 
+//* Modify by LeMaker -- begin
+#ifdef HAS_OWL_PLAYER
+  else if(pic.format == RENDER_FMT_OWL)
+	m_pRenderer->AddProcessor(pic.OWLBufferHolder, index);
+#endif
+//* Modify by LeMaker -- end
+
   m_pRenderer->ReleaseImage(index, false);
 
   return index;

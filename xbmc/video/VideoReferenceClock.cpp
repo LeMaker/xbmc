@@ -47,6 +47,10 @@
 #include "video/videosync/VideoSyncIos.h"
 #endif
 
+//* Modify by LeMaker -- begin
+#include "video/videosync/VideoSyncActions.h"
+//* Modify by LeMaker -- end
+
 using namespace std;
 
 CVideoReferenceClock::CVideoReferenceClock() : CThread("RefClock")
@@ -123,6 +127,11 @@ void CVideoReferenceClock::Process()
 #elif defined(TARGET_RASPBERRY_PI)
     m_pVideoSync = new CVideoSyncPi();
 #endif
+
+//* Modify by LeMaker -- begin
+    CLog::Log(LOGDEBUG, "CVideoReferenceClock: m_pVideoSync###");
+    m_pVideoSync = new CVideoSyncActions();
+//* Modify by LeMaker -- end
 
     if (m_pVideoSync)
     {

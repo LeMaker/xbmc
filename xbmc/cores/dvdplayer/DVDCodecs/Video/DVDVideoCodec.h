@@ -59,6 +59,9 @@ class CDVDVideoCodecIMXBuffer;
 class CMMALVideoBuffer;
 typedef void* EGLImageKHR;
 
+//* Modify by LeMaker -- begin
+class OWLVideoBufferHolder;
+//* Modify by LeMaker -- end
 
 // should be entirely filled by all codecs
 struct DVDVideoPicture
@@ -108,6 +111,11 @@ struct DVDVideoPicture
       CMMALVideoBuffer *MMALBuffer;
     };
 
+//* Modify by LeMaker -- begin
+    struct {
+      OWLVideoBufferHolder *OWLBufferHolder;
+    };
+//* Modify by LeMaker -- end
   };
 
   unsigned int iFlags;
