@@ -188,6 +188,7 @@ protected:
   OMX_ERRORTYPE stopOmxComponent_l(void);
   int fillinPrivateData(void);
   void addCodecSpecificData(const void *data, size_t size);
+  void addCodecSpecificTypeAndData(const void *type, size_t typeSize,const void *data, size_t size);
   void clearCodecSpecificData(void);
   void drainInputBuffers(void);
 

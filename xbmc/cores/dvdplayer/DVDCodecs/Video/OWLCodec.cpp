@@ -39,9 +39,6 @@
 #include <OMX_Index.h>
 #include <OMX_Image.h>
 #include <OMX_RoleNames.h>
-//* Modify by LeMaker -- begin
-//* #include "utils/fastmemcpy.h"
-//* Modify by LeMaker -- end
 #include "OWLCodec.h"
 #include "OWLCheckIDR.h"
 
@@ -104,7 +101,6 @@ COWLVideo::COWLVideo():
   mCodecSpecificDataIndex = 0;
   mSeeking = false;
   m_isIFrameStart = false;
-
 }
 
 COWLVideo::~COWLVideo()
@@ -897,6 +893,18 @@ void COWLVideo::addCodecSpecificData(const void *data, size_t size) {
     mCodecSpecificData.push_back(specific);
 }
 
+void COWLVideo::addCodecSpecificTypeAndData(const void *type, size_t typeSize,const void *data, size_t size) {
+    CodecSpecificData *specific =
+        (CodecSpecificData *)malloc(sizeof(CodecSpecificData) + typeSize + size - 1);
+
+    specific->mSize = typeSize + size;
+    memcpy(specific->mData, type, typeSize);
+    memcpy(specific->mData + typeSize, data, size);
+
+    mCodecSpecificData.push_back(specific);
+}
+
+
 void COWLVideo::clearCodecSpecificData(void) {
     for (size_t i = 0; i < mCodecSpecificData.size(); ++i) {
         free(mCodecSpecificData[i]);
@@ -927,12 +935,13 @@ bool COWLVideo::Open(CDVDStreamInfo &hints)
     case AV_CODEC_ID_H264:
     {
         mCodecType = OMX_VIDEO_CodingAVC;
-        m_isIFrameStart = true;
+        m_isIFrameStart = false;
     }
     break;
     case AV_CODEC_ID_MPEG4:
 	    mCodecType = OMX_VIDEO_CodingMPEG4;
     break;
+    case AV_CODEC_ID_MPEG1VIDEO:
     case AV_CODEC_ID_MPEG2VIDEO:
         mCodecType = OMX_VIDEO_CodingMPEG2;
         m_isIFrameStart = true;
@@ -983,11 +992,18 @@ bool COWLVideo::Open(CDVDStreamInfo &hints)
   if (mCodecType == OMX_VIDEO_CodingRV30 || mCodecType == OMX_VIDEO_CodingRV40 ||
   	mCodecType == OMX_VIDEO_CodingMPEG2 ||mCodecType == OMX_VIDEO_CodingVC1 ||
   	mCodecType == OMX_VIDEO_CodingWMV3 ||mCodecType == OMX_VIDEO_CodingMPEG4){
-  	if (hints.extradata && hints.extrasize > 0){
-  		CLog::Log(LOGNOTICE, "%s::%s HAVE extradata\n",CLASSNAME, __func__);
-		CLog::Log(LOGNOTICE, "%s::%s size ==%d\n",CLASSNAME, __func__,hints.extrasize);
-  		addCodecSpecificData((const void *)hints.extradata, hints.extrasize);
-  	}
+    if (hints.extradata && hints.extrasize > 0){
+      CLog::Log(LOGNOTICE, "%s::%s HAVE extradata\n",CLASSNAME, __func__);
+      CLog::Log(LOGNOTICE, "%s::%s size ==%d\n",CLASSNAME, __func__,hints.extrasize);
+
+      if (hints.codec == AV_CODEC_ID_MPEG1VIDEO) {
+        addCodecSpecificTypeAndData("mpeg1", 5, (const void *)hints.extradata, hints.extrasize);
+      }else if(hints.codec == AV_CODEC_ID_MPEG2VIDEO){
+        addCodecSpecificTypeAndData("mpeg2", 5, (const void *)hints.extradata, hints.extrasize);   
+      }else{
+        addCodecSpecificData((const void *)hints.extradata, hints.extrasize);
+      }
+    }
   }
   
   Create();
@@ -1158,7 +1174,13 @@ int COWLVideo::EnqueueDemuxPacket(omx_demux_packet demux_packet)
 
   delete[] demux_packet.buff;
 
-  omx_buffer->nTimeStamp = (OMX_TICKS)((demux_packet.pts == DVD_NOPTS_VALUE) ? 0 : demux_packet.pts); // in microseconds;
+  double presentationTimeUs = 0;
+  if (demux_packet.pts != DVD_NOPTS_VALUE)
+    presentationTimeUs = demux_packet.pts;
+  else if (demux_packet.dts != DVD_NOPTS_VALUE)
+    presentationTimeUs = demux_packet.dts;
+
+  omx_buffer->nTimeStamp = (OMX_TICKS)presentationTimeUs; // in microseconds;
 
   omx_buffer->nInputPortIndex = m_omx_input_port;
 #if defined(OMX_DEBUG_EMPTYBUFFERDONE)
@@ -1275,13 +1297,17 @@ int COWLVideo::Decode(uint8_t* pData, int iSize, double dts, double pts)
 		
 		omx_buffer->nFilledLen = (demuxer_bytes > omx_buffer->nAllocLen) ? omx_buffer->nAllocLen : demuxer_bytes;
 		
-//* Modify by LeMaker -- begin
-		//fast_memcpy(omx_buffer->pBuffer, demuxer_content, omx_buffer->nFilledLen);
 		memcpy(omx_buffer->pBuffer, demuxer_content, omx_buffer->nFilledLen);
-//* Modify by LeMaker -- end
 
-		omx_buffer->nTimeStamp = (OMX_TICKS)((pts == DVD_NOPTS_VALUE) ? 0 : pts);
-		omx_buffer->nInputPortIndex = m_omx_input_port;
+        double presentationTimeUs = 0;
+        if (pts != DVD_NOPTS_VALUE)
+          presentationTimeUs = pts;
+        else if (dts != DVD_NOPTS_VALUE)
+          presentationTimeUs = dts;
+		
+        omx_buffer->nTimeStamp = (OMX_TICKS)presentationTimeUs;
+		
+        omx_buffer->nInputPortIndex = m_omx_input_port;
 		
 		// Give this omx_buffer to OpenMax to be decoded.
 		omx_err = OMX_EmptyThisBuffer(m_omx_decoder, omx_buffer);
@@ -1311,8 +1337,6 @@ CHECK_IDR:
           || mCodecType == OMX_VIDEO_CodingMPEG2)){
 
        // _dump_data((char*)pData, iSize, "/home");
-
-
 
         if (mCodecType == OMX_VIDEO_CodingAVC){
           if (OWL_check_h264_IDR(pData, iSize) == 0)
@@ -1494,6 +1518,7 @@ int COWLVideo::GetPicture(DVDVideoPicture* pDvdVideoPicture)
           // nTimeStamp is in microseconds
           pDvdVideoPicture->pts = (buffer->omx_buffer->nTimeStamp == 0) ? DVD_NOPTS_VALUE : (double)(buffer->omx_buffer->nTimeStamp);
 	  }
+
 	  returnCode |= VC_PICTURE;
     }
 
