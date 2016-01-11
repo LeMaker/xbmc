@@ -1576,11 +1576,11 @@ void CAESinkALSA::EnumerateDevice(AEDeviceInfoList &list, const std::string &dev
             bool badHDMI = false;
 
             /* add ELD to monitoring */
-//* Modify by LeMaker -- begin
-#ifndef  HAS_OWL_PLAYER
+//* Modify by LeMaker -- begin 2016.1.6
+//#ifndef  HAS_OWL_PLAYER
             m_controlMonitor.Add(strHwName, SND_CTL_ELEM_IFACE_PCM, dev, "ELD");
-#endif
-//* Modify by LeMaker -- end
+//#endif
+//* Modify by LeMaker -- end 2016.1.6
 
             if (!GetELD(hctl, dev, info, badHDMI))
               CLog::Log(LOGDEBUG, "CAESinkALSA - Unable to obtain ELD information for device \"%s\" (not supported by device, or kernel older than 3.2)",
@@ -1832,13 +1832,13 @@ void CAESinkALSA::sndLibErrorHandler(const char *file, int line, const char *fun
   va_end(arg);
 }
 
-//* Modify by LeMaker -- begin
-#ifndef  HAS_OWL_PLAYER
+//* Modify by LeMaker -- begin 2016.1.7
+//#ifndef  HAS_OWL_PLAYER
 #if HAVE_LIBUDEV
 CALSADeviceMonitor CAESinkALSA::m_deviceMonitor; // ARGH
 #endif
 CALSAHControlMonitor CAESinkALSA::m_controlMonitor; // ARGH
-#endif
-//* Modify LeMaker -- end
+//#endif
+//* Modify LeMaker -- end 2016.1.7
 
 #endif
