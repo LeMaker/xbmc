@@ -219,6 +219,16 @@ bool CLinuxRendererGLES::ValidateRenderTarget()
     for (int i = 0 ; i < m_NumYV12Buffers ; i++)
       (this->*m_textureCreate)(i);
 
+//* Modify by LeMaker -- begin 2016.1.6
+#ifdef HAS_OWL_PLAYER
+	g_graphicsContext.BeginPaint();
+	glClearColor(m_clearColour, m_clearColour, m_clearColour, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0,0,0,0);
+	g_graphicsContext.EndPaint();
+#endif	
+//* Modify by LeMaker -- end 2016.1.6
+
     m_bValidated = true;
     return true;
   }

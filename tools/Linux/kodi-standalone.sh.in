@@ -25,6 +25,11 @@ bindir="@bindir@"
 bin_name=@APP_NAME_LC@
 APP="${bindir}/${bin_name} --standalone $@"
 
+# Modify by LeMaker -- begin 2016.1.6
+export LD_LIBRARY_PATH=${prefix}/lib/kodi/lib:/usr/local/XSGX/lib:$LD_LIBRARY_PATH
+export PYTHONPATH=${prefix}/lib/kodi/lib/python2.7:${prefix}/lib/kodi/lib/python2.7/plat-linux2:${prefix}/lib/kodi/lib/python2.7/lib-dynload:${prefix}/lib/kodi/lib/python2.7/site-packages
+# Modify by LeMaker -- end 2016.1.6
+
 @XBMC_STANDALONE_SH_PULSE@
 
 LOOP=1

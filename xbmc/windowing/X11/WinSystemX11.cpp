@@ -1176,6 +1176,12 @@ bool CWinSystemX11::SetWindow(int width, int height, bool fullscreen, const std:
     changeSize = true;
 
 #if defined(HAS_EGL)
+//* Modify by LeMaker -- begin 2016.1.6
+#if defined(HAS_OWL_PLAYER)
+	if (m_eglSurface != EGL_NO_SURFACE)
+		eglDestroySurface(m_eglDisplay, m_eglSurface);
+#endif
+//* Modify by LeMaker -- begin 2016.1.6
     m_eglSurface = eglCreateWindowSurface(m_eglDisplay, eglConfig, m_glWindow, NULL);
     if (m_eglSurface == EGL_NO_SURFACE)
     {
